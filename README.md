@@ -2,7 +2,7 @@
 
 This README provides an overview of the CloudFormation template code and its resources. The stack includes various AWS resources, and sets up a basic infrastructure with a VPC, subnets, load balancer, auto scaling group, and a Dockerized Flask application running on EC2 instances.
 
-## Parameters
+## Parameters <a name="parameters"></a>
 
 The CloudFormation template includes the following parameters:
 
@@ -78,7 +78,7 @@ _This stack is currently set to work for the following regions: `eu-west-1`, `eu
 
 1. Make sure to have an IAM role to allow CloudFormation to create resources (if not, create one).
 2. Upload the template (`main.yaml`) and application files (`app/` folder and content) to an S3 bucket.
-3. Launch the CloudFormation stack and provide the necessary parameters [see Parameters section above]
+3. Launch the CloudFormation stack and provide the necessary parameters [see [Parameters](#parameters) section above]
     * When providing the `URL` to upload the stack from the s3 bucket, follow this format: `https://<bucket-name>.s3-<region>.amazonaws.com/main.yaml`
 4. Wait for the stack to complete and check the outputs for important information such as the load balancer DNS name.
 5. Wait for the ec2 instances to be initialized and with `status check` -> `2/2 checks passed`

@@ -80,6 +80,8 @@ To use the CloudFormation template:
 2. Launch the CloudFormation stack and provide the necessary parameters.
 3. Wait for the stack to complete and check the outputs for important information such as the load balancer DNS name.
 
+- Currently set to work for the following regions: eu-west-1, eu-west-2, us-east-1, us-west-1.
+
 ## Notes
 
 - The template uses AWS resources that may incur costs. Make sure to review the pricing information for each resource before deploying the stack.

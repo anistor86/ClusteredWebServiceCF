@@ -8,7 +8,7 @@ The CloudFormation template includes the following parameters:
 
 - `InstanceType`: The EC2 instance type for the launch template.
 - `OperatingSystem`: Selects the operating system for the EC2 instance.
-- `TemplateBucketName`: The S3 bucket name where the CloudFormation template and app files are stored.
+- `TemplateBucketName`: The S3 bucket name where the CloudFormation template and app files are stored (_only the name not the full URL_).
 - `EmailAddress`: The email address to subscribe to the SNS topic.
 
 ## Mappings

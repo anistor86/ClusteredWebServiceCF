@@ -1,0 +1,426 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# Parameters for stack creation
+Parameters:
+  InstanceType:
+    Type: String
+    Description: EC2 instance type for the Launch Template
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t3.micro
+      - t3.small
+      - t3.medium
+  OperatingSystem:
+    Type: String
+    Default: ubuntu
+    AllowedValues:
+      - ubuntu
+      - amznLinux
+    Description: Select the operating system for the EC2 instance.
+  TemplateBucketName:
+    Type: String
+    Description: S3 bucket name where the CloudFormation template and app files are stored
+  EmailAddress:
+    Type: String
+    Description: Email address to subscribe to the SNS topic
+Conditions:
+  IsAmazonLinux: !Equals [!Ref OperatingSystem, amznLinux]
+  IsUbuntu: !Equals [!Ref OperatingSystem, ubuntu]
+# Mappings for region AMIs and availability zones
+Mappings:
+  RegionAMI:
+    eu-west-1:
+      ubuntu: ami-01dd271720c1ba44f
+      amznLinux: ami-04f7efe62f419d9f5
+    eu-west-2:
+      ubuntu: ami-0eb260c4d5475b901
+      amznLinux: ami-0e1c5be2aa956338b
+    us-east-1:
+      ubuntu: ami-053b0d53c279acc90
+      amznLinux: ami-0715c1897453cabd1
+    us-west-1:
+      ubuntu: ami-0f8e81a3da6e2510a
+      amznLinux: ami-0062dbf6b829f04e1
+  AvailabilityZoneSubnets:
+    eu-west-1:
+      AvailabilityZone1: "eu-west-1a"
+      AvailabilityZone2: "eu-west-1b"
+    eu-west-2:
+      AvailabilityZone1: "eu-west-2a"
+      AvailabilityZone2: "eu-west-2b"
+    us-east-1:
+      AvailabilityZone1: "us-east-1a"
+      AvailabilityZone2: "us-east-1b"
+    us-west-1:
+      AvailabilityZone1: "us-west-1a"
+      AvailabilityZone2: "us-west-1b"
+# Resources
+Resources:
+  # VPC resource
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: MyVPC
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # Subnet 1
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !FindInMap [AvailabilityZoneSubnets, !Ref "AWS::Region", AvailabilityZone1]
+      Tags:
+        - Key: Name
+          Value: MySubnet1
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+      MapPublicIpOnLaunch: true
+  # Subnet 2
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !FindInMap [AvailabilityZoneSubnets, !Ref "AWS::Region", AvailabilityZone2]
+      Tags:
+        - Key: Name
+          Value: MySubnet2
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+      MapPublicIpOnLaunch: true
+  # Internet Gateway Resource
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyInternetGateway
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # VPC Gateway Attachment Resource
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  # Route Table Resource
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MyRouteTable
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # Internet Route Resource
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  # Subnet 1 Route Table Association
+  Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet1
+      RouteTableId: !Ref RouteTable
+  # Subnet 2 Route Table Association
+  Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet2
+      RouteTableId: !Ref RouteTable
+  # Security Group for EC2 instances
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MySecurityGroup
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # Security Group for Load Balancer
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow ALB access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: MyLoadBalancerSecurityGroup
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # Application Load Balancer Resource
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: MyLoadBalancer
+      Subnets:
+        - !Ref Subnet1
+        - !Ref Subnet2
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Type: application
+      Tags:
+        - Key: Name
+          Value: MyLoadBalancer
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # Target Group Resource
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: MyTargetGroup
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref VPC
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /health-check
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+  # Listener Resource
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+  # Network Interface Resource
+  NetworkInterface:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref Subnet1
+      Description: MyNetworkInterface
+      GroupSet:
+        - !Ref SecurityGroup
+      SourceDestCheck: true
+      Tags:
+        - Key: Name
+          Value: MyNetworkInterface
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # EC2Role for S3 access
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EC2Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  # EC2Role for S3 access policy
+  EC2RolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EC2RolePolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              Fn::Sub: "arn:aws:s3:::${TemplateBucketName}/*"
+      Roles:
+        - !Ref EC2Role
+  # InstanceProfile for launch template
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: MyInstanceProfile
+      Roles:
+        - !Ref EC2Role
+  # Launch Template Resource
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: MyLaunchTemplate
+      LaunchTemplateData:
+        ImageId: !FindInMap [RegionAMI, !Ref 'AWS::Region', !Ref OperatingSystem]
+        InstanceType: !Ref InstanceType
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - !Ref SecurityGroup
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        UserData:
+          Fn::Base64: !If
+            - IsAmazonLinux
+            - !Sub |
+                #!/bin/bash
+                yum update -y
+                yum install -y docker
+                systemctl enable docker
+                systemctl start docker
+                usermod -aG docker ec2-user
+                amazon-linux-extras install -y awscli
+                aws s3 cp s3://${TemplateBucketName}/app/requirements.txt /home/ec2-user/
+                aws s3 cp s3://${TemplateBucketName}/app/app.py /home/ec2-user/
+                aws s3 cp s3://${TemplateBucketName}/app/Dockerfile /home/ec2-user/
+                chown ec2-user:ec2-user /home/ec2-user/app.py /home/ec2-user/Dockerfile /home/ec2-user/requirements.txt
+                docker build -t myflaskapp /home/ec2-user
+                docker run -d -p 80:80 myflaskapp
+            - !If
+                - IsUbuntu
+                - !Sub |
+                    #!/bin/bash
+                    apt update
+                    apt install -y awscli
+                    apt install -y docker.io
+                    groupadd docker
+                    usermod -aG docker ubuntu
+                    aws s3 cp s3://${TemplateBucketName}/app/requirements.txt /home/ubuntu/
+                    aws s3 cp s3://${TemplateBucketName}/app/app.py /home/ubuntu/
+                    aws s3 cp s3://${TemplateBucketName}/app/Dockerfile /home/ubuntu/
+                    chown ubuntu:ubuntu /home/ubuntu/app.py /home/ubuntu/Dockerfile /home/ubuntu/requirements.txt
+                    docker build -t myflaskapp /home/ubuntu
+                    docker run -d -p 80:80 myflaskapp
+                - !Equals [!Ref OperatingSystem, ubuntu]
+  # AutoScaling Group Resource 
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      VPCZoneIdentifier:
+        - !Ref Subnet1
+        - !Ref Subnet2
+      Tags:
+        - Key: Name
+          Value: MyAutoScalingGroup
+          PropagateAtLaunch: false
+        - Key: environment
+          Value: test
+          PropagateAtLaunch: true
+        - Key: businessUnit
+          Value: engineering
+          PropagateAtLaunch: true
+  # SNS topic
+  MySnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: My SNS Topic
+      Subscription:
+        - Endpoint: !Ref EmailAddress
+          Protocol: email
+  # CloudWatch Alarm for CPU Utilization
+  CpuUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: MyCpuUtilizationAlarm
+      AlarmDescription: Alarm for CPU Utilization
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 5
+      Threshold: 70
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref MySnsTopic
+      InsufficientDataActions:
+        - !Ref MySnsTopic
+  # CloudWatch Log Group
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: MyLogGroup
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: MyLogGroup
+        - Key: environment
+          Value: test
+        - Key: businessUnit
+          Value: engineering
+  # CloudWatch Log Stream
+  LogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref LogGroup
+      LogStreamName: MyLogStream
+  # CloudWatch Metric Filter
+  MetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: "ERROR"
+      LogGroupName: !Ref LogGroup
+      MetricTransformations:
+        - MetricNamespace: MyNamespace
+          MetricName: MyMetricName
+          MetricValue: "1"
+          DefaultValue: "0"
+# Output LoadBalancer DNS so it can be "curled"
+Outputs:
+  LoadBalancerDNS:
+    Value: !GetAtt LoadBalancer.DNSName
+    Description: DNS name of the load balancer

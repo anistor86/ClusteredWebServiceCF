@@ -76,9 +76,13 @@ The template includes the following outputs:
 
 To use the CloudFormation template:
 
-1. Upload the template and application files to an S3 bucket.
-2. Launch the CloudFormation stack and provide the necessary parameters.
-3. Wait for the stack to complete and check the outputs for important information such as the load balancer DNS name.
+1. Make sure to have an IAM role to allow CloudFormation to create resources (if not, create one).
+2. Upload the template (`main.yaml`) and application files (`app/` folder and content) to an S3 bucket.
+3. Launch the CloudFormation stack and provide the necessary parameters [see Parameters section above]
+    * When providing the `URL` to upload the stack from the s3 bucket, follow this format: `https://<bucket-name>.s3-<region>.amazonaws.com/main.yaml`
+4. Wait for the stack to complete and check the outputs for important information such as the load balancer DNS name.
+5. Wait for the ec2 instances to be initialized and with `status check` -> `2/2 checks passed`
+6. `curl` the `LoadBalancerDNS` provided in the Stack output
 
 - Currently set to work for the following regions: `eu-west-1`, `eu-west-2`, `us-east-1`, `us-west-1` (Edit the `RegionAMI` mapping accordingly with new regions and related AMIs, edit also the `AvailabilityZoneSubnets` mapping to use this stack in different regions).
 
